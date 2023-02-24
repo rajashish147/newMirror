@@ -22,7 +22,7 @@ aria2 = ariaAPI(ariaClient(host="http://localhost", port=6800, secret=""))
 
 LOGGER = getLogger(__name__)
 
-rawowners = "<h1 style='text-align: center'>See my Channel <a href='https://t.me/JMDKH_Team'>@Telegram</a><br><br>By<br><br><a href='https://github.com/junedkh'>Juned KH</a></h1>"
+rawowners = "<h1 style='text-align: center'>See my Channel <a href='https://t.me/GlitchInLuck'>@Telegram</a><br><br>By<br><br><a href='https://github.com/rajashish147'>Ashish Raj</a></h1>"
 
 pin_entry = '''
     <section>
@@ -63,7 +63,7 @@ rawindexpage = '''
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Torrent File Selector</title>
-    <link rel="icon" href="//cdn.jsdelivr.net/gh/junedkh/somesrcs@main/poster.png" type="image/jpg">
+    <link rel="icon" href="https://graph.org/file/195eccab9237ee3de4b54.jpg" type="image/jpg">
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -84,12 +84,12 @@ rawindexpage = '''
     <!--© Designed and coded by @bipuldey19-Telegram-->
     <header>
         <div class="brand">
-            <img src="//cdn.jsdelivr.net/gh/junedkh/somesrcs@main/poster.png" alt="logo" />
+            <img src="https://graph.org/file/195eccab9237ee3de4b54.jpg" alt="logo" />
         </div>
         <h2 class="name">Qbittorrent Selection</h2>
         <div class="social">
-            <a href="https://www.github.com/junedkh"><i class="fab fa-github"></i></a>
-            <a href="https://t.me/JMDKH_Team"><i class="fab fa-telegram"></i></a>
+            <a href="https://www.github.com/rajashish147"><i class="fab fa-github"></i></a>
+            <a href="https://t.me/GlitchInLuck"><i class="fab fa-telegram"></i></a>
         </div>
     </header>
     <!-- pin_entry -->
