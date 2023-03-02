@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 from asyncio import create_subprocess_exec
 from math import ceil
+from os import _exit
 from os import path as ospath
 from os import walk
 from re import I
 from re import search as re_search
 from re import split as re_split
 from shutil import disk_usage, rmtree
-from sys import exit as sysexit
+from subprocess import run as srun
+from sys import exit as sexit
 from time import time
 
 from aiofiles.os import listdir, makedirs, mkdir
@@ -86,12 +88,16 @@ def clean_all():
 
 def exit_clean_up(signal, frame):
     try:
-        LOGGER.info("Please wait, while we clean up the downloads and stop running downloads")
+        LOGGER.info("Please wait, while we clean up and stop the running downloads")
         clean_all()
-        sysexit(0)
+        srun(['pkill', '-9', '-f', '-e', 'gunicorn|aria2c|qbittorrent-nox|ffmpeg'])
+        sexit(0)
     except KeyboardInterrupt:
         LOGGER.warning("Force Exiting before the cleanup finishes!")
-        sysexit(1)
+        sexit(1)
+    except Exception as e:
+        LOGGER.error(e)
+        _exit(1)
 
 async def clean_unwanted(path):
     LOGGER.info(f"Cleaning unwanted files/folders: {path}")
@@ -99,7 +105,7 @@ async def clean_unwanted(path):
         for filee in files:
             if filee.endswith(".!qB") or filee.endswith('.parts') and filee.startswith('.'):
                 await aioremove(ospath.join(dirpath, filee))
-        if dirpath.endswith((".unwanted", "splited_files_mltb")):
+        if dirpath.endswith((".unwanted", "splited_files_mltb", "copied_mltb")):
             await aiormtree(dirpath)
     for dirpath, subdir, files in await sync_to_async(walk, path, topdown=False):
         if not listdir(dirpath):
@@ -238,11 +244,11 @@ async def get_media_info(path):
 
     try:
         result = await cmd_exec(["ffprobe", "-hide_banner", "-loglevel", "error", "-print_format",
-                               "json", "-show_format", "-show_streams", path])
+                                 "json", "-show_format", "-show_streams", path])
         if res := result[1]:
             LOGGER.warning(f'Get Media Info: {res}')
     except Exception as e:
-        LOGGER.error(f'Get Document Type: {e}. Mostly File not found!')
+        LOGGER.error(f'Get Media Info: {e}. Mostly File not found!')
         return 0, None, None
 
     fields = eval(result[0]).get('format')
@@ -290,7 +296,7 @@ async def get_document_type(path):
         result = await cmd_exec(["ffprobe", "-hide_banner", "-loglevel", "error", "-print_format",
                                  "json", "-show_streams", path])
         if res := result[1]:
-            LOGGER.warning(f'Get Media Info: {res}')
+            LOGGER.warning(f'Get Document Type: {res}')
     except Exception as e:
         LOGGER.error(f'Get Document Type: {e}. Mostly File not found!')
         return is_video, is_audio, is_image

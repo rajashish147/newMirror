@@ -125,9 +125,9 @@ class YoutubeDLHelper:
             await self.__listener.onDownloadStart()
             await sendStatusMessage(self.__listener.message)
 
-    def __onDownloadError(self, error, button=None):
+    def __onDownloadError(self, error):
         self.__is_cancelled = True
-        async_to_sync(self.__listener.onDownloadError, error, button)
+        async_to_sync(self.__listener.onDownloadError, error)
 
     def extractMetaData(self, link, name, args, get_info=False):
         if args:
@@ -226,12 +226,12 @@ class YoutubeDLHelper:
             if sname:
                 smsg, button = await sync_to_async(GoogleDriveHelper().drive_list, sname, True)
                 if smsg:
-                    self.__onDownloadError('File/Folder already available in Drive.\nHere are the search results:\n', button)
+                    await self.__listener.onDownloadError('File/Folder already available in Drive.\nHere are the search results:\n', button)
                     return
         limit_exceeded = ''
         if not limit_exceeded and (STORAGE_THRESHOLD:= config_dict['STORAGE_THRESHOLD']):
             limit = STORAGE_THRESHOLD * 1024**3
-            acpt = check_storage_threshold(self.__size, limit, self.__listener.isZip)
+            acpt = await sync_to_async(check_storage_threshold, self.__size, limit, self.__listener.isZip)
             if not acpt:
                 limit_exceeded = f'You must leave {get_readable_file_size(limit)} free storage.'
                 limit_exceeded += f'\nYour File/Folder size is {get_readable_file_size(self.__size)}'
@@ -248,7 +248,8 @@ class YoutubeDLHelper:
                 limit_exceeded += f'Your {"Playlist" if self.is_playlist else "Video"} size\n'
                 limit_exceeded += f'is {get_readable_file_size(self.__size)}'
         if limit_exceeded:
-            return self.__onDownloadError(limit_exceeded)
+            await self.__listener.onDownloadError(limit_exceeded)
+            return
         all_limit = config_dict['QUEUE_ALL']
         dl_limit = config_dict['QUEUE_DOWNLOAD']
         if all_limit or dl_limit:
