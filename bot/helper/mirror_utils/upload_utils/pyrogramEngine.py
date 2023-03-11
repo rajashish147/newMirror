@@ -23,8 +23,9 @@ from bot import (GLOBAL_EXTENSION_FILTER, IS_PREMIUM_USER, bot, config_dict,
                  user, user_data)
 from bot.helper.ext_utils.bot_utils import (get_readable_file_size,
                                             sync_to_async)
-from bot.helper.ext_utils.fs_utils import (clean_unwanted, get_document_type,
-                                           get_media_info, take_ss)
+from bot.helper.ext_utils.fs_utils import (clean_unwanted, get_base_name,
+                                           get_document_type, get_media_info,
+                                           is_archive, take_ss)
 from bot.helper.telegram_helper.button_build import ButtonMaker
 
 LOGGER = getLogger(__name__)
@@ -75,21 +76,25 @@ class TgUploader:
     async def __msg_to_reply(self):
         if DUMP_CHAT:= config_dict['DUMP_CHAT']:
             if self.__listener.logMessage:
-                self.__sent_msg = await bot.copy_message(DUMP_CHAT, self.__listener.logMessage.chat.id, self.__listener.logMessage.id)
+                self.__sent_msg = await self.__listener.logMessage.copy(DUMP_CHAT)
             else:
                 msg = f'<b><a href="{self.__listener.message.link}">Source</a></b>' if self.__listener.isSuperGroup else self.__listener.message.text
                 msg = f'{msg}\n\n<b>#cc</b>: {self.__listener.tag} (<code>{self.__listener.message.from_user.id}</code>)'
                 self.__sent_msg = await bot.send_message(DUMP_CHAT, msg, disable_web_page_preview=True)
+            if self.__listener.dmMessage:
+                self.__sent_DMmsg = self.__listener.dmMessage
         elif IS_PREMIUM_USER:
             if not self.__listener.isSuperGroup:
                 await self.__listener.onUploadError('Use SuperGroup to leech with User!')
                 return
             self.__sent_msg = await bot.get_messages(chat_id=self.__listener.message.chat.id,
                                                           message_ids=self.__listener.uid)
+            if self.__listener.dmMessage:
+                self.__sent_DMmsg = self.__listener.dmMessage
+        elif self.__listener.dmMessage:
+            self.__sent_msg = self.__listener.dmMessage
         else:
             self.__sent_msg = self.__listener.message
-        if self.__listener.dmMessage:
-            self.__sent_DMmsg = self.__listener.dmMessage
         if (self.__listener.isSuperGroup or config_dict['DUMP_CHAT']) and not self.__sent_msg.chat.has_protected_content:
             btn = ButtonMaker()
             btn.ibutton('Save This File', 'save', 'footer')
@@ -111,24 +116,28 @@ class TgUploader:
         else:
             cap_mono = f"<code>{file_}</code>"
         if len(file_) > 60:
-            ntsplit = file_.rsplit('.', 2)
-            if len(ntsplit) == 1:
-                return cap_mono
-            elif len(ntsplit[1]) >= 60 or len(ntsplit) == 2:
-                ntsplit = file_.rsplit('.', 1)
-                ext = ntsplit[1]
+            if is_archive(file_):
+                name = get_base_name(file_)
+                ext = file_.split(name, 1)[1]
+            elif match := re_match(r'.+(?=\..+\.0*\d+$)|.+(?=\.part\d+\..+)', file_):
+                name = match.group(0)
+                ext = file_.split(name, 1)[1]
+            elif len(fsplit := file_.rsplit('.', 1)) > 1:
+                name = fsplit[0]
+                ext = f'.{fsplit[1]}'
             else:
-                ext = f"{ntsplit[1]}.{ntsplit[2]}"
+                name = file_
+                ext = ''
             extn = len(ext)
             remain = 60 - extn
-            name = ntsplit[0][:remain]
+            name = name[:remain]
             if self.__listener.seed and not self.__listener.newDir and not dirpath.endswith("splited_files_mltb"):
                 dirpath = f'{dirpath}/copied_mltb'
                 await makedirs(dirpath, exist_ok=True)
-                new_path = ospath.join(dirpath, f"{name}.{ext}")
+                new_path = ospath.join(dirpath, f"{name}{ext}")
                 self.__up_path = await copy(self.__up_path, new_path)
             else:
-                new_path = ospath.join(dirpath, f"{name}.{ext}")
+                new_path = ospath.join(dirpath, f"{name}{ext}")
                 await aiorename(self.__up_path, new_path)
                 self.__up_path = new_path
         return cap_mono
@@ -158,8 +167,12 @@ class TgUploader:
                 self.__msgs_dict[m.link] = m.caption
         self.__sent_msg = msgs_list[-1]
         if self.__sent_DMmsg:
-            dm_msgs_list = await self.__sent_DMmsg.reply_media_group(media=grouped_media, quote=True)
-            self.__sent_DMmsg = dm_msgs_list[-1]
+            try:
+                dm_msgs_list = await self.__sent_DMmsg.reply_media_group(media=grouped_media, quote=True)
+                self.__sent_DMmsg = dm_msgs_list[-1]
+            except Exception as err:
+                LOGGER.error(f"Error while sending media group in dm {err.__class__.__name__}")
+                self.__sent_DMmsg = None
 
     async def upload(self, o_files, m_size):
         await self.__msg_to_reply()
@@ -239,12 +252,16 @@ class TgUploader:
         await self.__listener.onUploadComplete(None, size, self.__msgs_dict, self.__total_files, self.__corrupted, self.name)
 
     async def __send_dm(self):
-        self.__sent_DMmsg = await self.__sent_DMmsg._client.copy_message(
-            chat_id=self.__sent_DMmsg.chat.id,
-            message_id=self.__sent_msg.id,
-            from_chat_id=self.__sent_msg.chat.id,
-            reply_to_message_id=self.__sent_DMmsg.id
-        )
+        try:
+            self.__sent_DMmsg = await self.__sent_DMmsg._client.copy_message(
+                chat_id=self.__sent_DMmsg.chat.id,
+                message_id=self.__sent_msg.id,
+                from_chat_id=self.__sent_msg.chat.id,
+                reply_to_message_id=self.__sent_DMmsg.id
+            )
+        except Exception as err:
+            LOGGER.error(f"Error while sending dm {err.__class__.__name__}")
+            self.__sent_DMmsg = None
 
     @retry(wait=wait_exponential(multiplier=2, min=4, max=8), stop=stop_after_attempt(3),
            retry=retry_if_exception_type(Exception))

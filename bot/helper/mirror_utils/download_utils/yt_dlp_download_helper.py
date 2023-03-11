@@ -70,7 +70,7 @@ class YoutubeDLHelper:
                      'allow_playlist_files': True,
                      'overwrites': True,
                      'nocheckcertificate': True,
-                     'trim_file_name': 200}
+                     'trim_file_name': 220}
 
     @property
     def download_speed(self):
@@ -148,6 +148,7 @@ class YoutubeDLHelper:
                     raise e
                 return self.__onDownloadError(str(e))
         if 'entries' in result:
+            self.name = name
             for entry in result['entries']:
                 if not entry:
                     continue
@@ -158,8 +159,6 @@ class YoutubeDLHelper:
                 if not name:
                     outtmpl_ = '%(series,playlist_title,channel)s%(season_number& |)s%(season_number&S|)s%(season_number|)02d'
                     self.name = ydl.prepare_filename(entry, outtmpl=outtmpl_)
-                else:
-                    self.name = name
         else:
             outtmpl_ ='%(title,fulltitle,alt_title)s%(season_number& |)s%(season_number&S|)s%(season_number|)02d%(episode_number&E|)s%(episode_number|)02d%(height& |)s%(height|)s%(height&p|)s%(fps|)s%(fps&fps|)s%(tbr& |)s%(tbr|)d.%(ext)s'
             realName = ydl.prepare_filename(result, outtmpl=outtmpl_)
@@ -229,12 +228,6 @@ class YoutubeDLHelper:
                     await self.__listener.onDownloadError('File/Folder already available in Drive.\nHere are the search results:\n', button)
                     return
         limit_exceeded = ''
-        if not limit_exceeded and (STORAGE_THRESHOLD:= config_dict['STORAGE_THRESHOLD']):
-            limit = STORAGE_THRESHOLD * 1024**3
-            acpt = await sync_to_async(check_storage_threshold, self.__size, limit, self.__listener.isZip)
-            if not acpt:
-                limit_exceeded = f'You must leave {get_readable_file_size(limit)} free storage.'
-                limit_exceeded += f'\nYour File/Folder size is {get_readable_file_size(self.__size)}'
         if not limit_exceeded and (YTDLP_LIMIT:= config_dict['YTDLP_LIMIT']):
             limit = YTDLP_LIMIT * 1024**3
             if self.__size > limit:
@@ -247,6 +240,12 @@ class YoutubeDLHelper:
                 limit_exceeded = f'Leech limit is {get_readable_file_size(limit)}\n'
                 limit_exceeded += f'Your {"Playlist" if self.is_playlist else "Video"} size\n'
                 limit_exceeded += f'is {get_readable_file_size(self.__size)}'
+        if not limit_exceeded and (STORAGE_THRESHOLD:= config_dict['STORAGE_THRESHOLD']):
+            limit = STORAGE_THRESHOLD * 1024**3
+            acpt = await sync_to_async(check_storage_threshold, self.__size, limit, self.__listener.isZip)
+            if not acpt:
+                limit_exceeded = f'You must leave {get_readable_file_size(limit)} free storage.'
+                limit_exceeded += f'\nYour File/Folder size is {get_readable_file_size(self.__size)}'
         if limit_exceeded:
             await self.__listener.onDownloadError(limit_exceeded)
             return
